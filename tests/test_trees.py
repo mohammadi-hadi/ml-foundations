@@ -227,8 +227,11 @@ def test_the_split_choice_survives_jitter_in_the_impurity_arithmetic(
     root into a different model.
 
     The jitter injected here is exactly that perturbation: a relative 1e-13 on every impurity
-    score, applied where the platform's own differences would appear. Without the quantisation
-    in ``_best_split`` this test fails, and the numbers in lesson 5 depend on the hardware.
+    score, applied where the platform's own differences would appear. Two things in
+    ``_best_split`` are what make it survivable — centring the targets, so that the impurity is
+    not computed as the difference of two nearly equal numbers, and quantising the scores, so
+    that a tie is decided by position rather than by the last bit. Remove either and this test
+    fails by a wide margin, and the numbers in lesson 5 become a property of the hardware.
     """
     data = ds.make_friedman1(n_samples=400, noise=1.0, seed=113)
     original = trees._impurity_total
@@ -241,6 +244,10 @@ def test_the_split_choice_survives_jitter_in_the_impurity_arithmetic(
     for build in (
         lambda: DecisionTree(max_depth=10),
         lambda: BaggedTrees(n_estimators=8, max_depth=10, max_features=3, seed=1),
+        # Fully grown, feature-subsampled trees are the hardest case and the one that first
+        # exposed this: nearly pure nodes make `Σy² - (Σy)²/n` cancel almost completely, and
+        # one flipped split changes every random feature subset drawn after it.
+        lambda: BaggedTrees(n_estimators=20, max_depth=12, max_features=3, seed=5),
         lambda: GradientBoostedTrees(n_estimators=25, max_depth=3),
     ):
         clean = build().fit(data.X, data.y).predict(data.X)

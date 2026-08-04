@@ -174,11 +174,18 @@ the checks are layered:
   vector width, so the same sum can differ in its last bits between platforms. That is far too
   small to change which split is genuinely best and quite large enough to change which of two
   *equally* good splits wins — and a greedy tree turns one flipped split into a different
-  model. One test injects exactly that perturbation, a relative `1e-13` on every impurity
-  score. Without the tie quantisation in
-  [`_best_split`](../src/ml_foundations/trees.py) the predictions move by **1.16**; with it
-  they do not move at all, which is the only reason the numbers on this page can be checked by
-  a machine that is not this one.
+  model and a different set of random feature subsets thereafter. One test injects exactly
+  that perturbation, a relative `1e-13` on every impurity score, and requires the predictions
+  not to move at all.
+
+  Two things in [`_best_split`](../src/ml_foundations/trees.py) make that possible. It centres
+  the targets first, because `Σy² - (Σy)²/n` on uncentred data is a difference of two nearly
+  equal numbers and in a nearly pure node almost every digit cancels — the same naive-variance
+  blunder [lesson 1](01-linear-regression.md) is about, met again three lessons later. And it
+  quantises the scores before comparing them, so ties resolve by position rather than by the
+  last bit. Remove either and a forty-tree forest's predictions move by **0.60** under that
+  jitter; with both, they do not move at all. This is the only reason the numbers on this page
+  can be verified by a machine that is not the one that produced them.
 
 ## Takeaways
 

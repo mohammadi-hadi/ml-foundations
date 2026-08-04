@@ -125,11 +125,19 @@ class DecisionTree:
 
     def _best_split(self, X: Array, y: Array) -> tuple[int, float] | None:
         n_samples = y.shape[0]
+        # Centre the targets before accumulating anything. Squared-error impurity is unchanged
+        # by shifting y, so this is mathematically a no-op — and numerically it is the whole
+        # ball game. The prefix-sum form computes `Σy² - (Σy)²/n`, a difference of two nearly
+        # equal numbers, and in a node that is almost pure almost every significant digit
+        # cancels. That is the naive-variance blunder lesson 1 is about, and it shows up here
+        # as a deep tree whose shape depends on the machine's summation order. Centring keeps
+        # both terms the size of the answer.
+        work = y - y.mean() if self.criterion == "mse" else y
         best_score = _impurity_total(
             self.criterion,
             np.array([float(n_samples)]),
-            np.array([float(y.sum())]),
-            np.array([float((y**2).sum())]),
+            np.array([float(work.sum())]),
+            np.array([float((work**2).sum())]),
         )[0]
         # Candidate scores are quantised before they are compared. Two splits are often equally
         # good to within the last bits of a floating-point sum, and which one then wins depends
@@ -146,7 +154,7 @@ class DecisionTree:
         for feature in self._candidate_features(X.shape[1]):
             order = np.argsort(X[:, feature], kind="mergesort")
             values = X[order, feature]
-            targets = y[order]
+            targets = work[order]
 
             left_count = np.arange(1, n_samples, dtype=np.float64)
             left_total = np.cumsum(targets)[:-1]

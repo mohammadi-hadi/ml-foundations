@@ -65,6 +65,21 @@ def render_digits(values: list[float]) -> str:
     return f">= {FULL_PRECISION}" if median >= FULL_PRECISION else str(math.floor(median))
 
 
+def render_digits_lost(values: list[float], reference: list[float]) -> str:
+    """Digits lost *relative to the best-conditioned problem in the sweep*.
+
+    Reported as a difference rather than as an absolute count for a reason worth stating: the
+    absolute count is about half a digit lower on the continuous integration runner than on
+    the machine these numbers were generated on, because Linux and macOS ship different BLAS
+    libraries and the two accumulate ``XᵀX`` in a different order. That offset applies to
+    every row at once, so subtracting the first row removes it entirely and leaves the thing
+    the lesson is actually claiming — the *rate* at which digits are lost — which is a
+    property of the arithmetic rather than of the vendor who implemented it.
+    """
+    lost = float(np.median(reference)) - float(np.median(values))
+    return str(max(0, round(lost)))
+
+
 def _fit_all(X: np.ndarray, y: np.ndarray) -> dict[str, LinearRegression | None]:
     """Fit every solver, recording a refusal as a refusal rather than crashing the report."""
     out: dict[str, LinearRegression | None] = {}
@@ -139,18 +154,21 @@ def _sweep_row(scale: float, seed: int) -> tuple[float, dict[str, float], float,
 def _conditioning_sweep(seed: int) -> tuple[str, list[tuple[float, float, float, float]]]:
     rows = []
     plot_data: list[tuple[float, float, float, float]] = []
+    baseline: list[float] = []
     for scale in SCALES:
         measured = [_sweep_row(scale, seed * replicate) for replicate in REPLICATES]
         kappa = float(np.median([row[0] for row in measured]))
         normal = [row[1]["normal"] for row in measured]
         qr = [row[1]["qr"] for row in measured]
+        if not baseline:
+            baseline = normal
         truth_gap = float(np.median([row[2] for row in measured]))
         test_error = float(np.median([row[3] for row in measured]))
 
         rows.append(
             [
                 f"{kappa:.0e}",
-                "refused" if np.isnan(normal).all() else render_digits(normal),
+                "refused" if np.isnan(normal).all() else render_digits_lost(normal, baseline),
                 render_digits(qr),
                 f"{truth_gap:.1e}",
                 fmt(test_error),
@@ -161,7 +179,7 @@ def _conditioning_sweep(seed: int) -> tuple[str, list[tuple[float, float, float,
     rendered = table(
         [
             "Condition number of X",
-            "Digits kept by `normal`",
+            "Digits lost by `normal`",
             "Digits kept by `qr`",
             "Distance from the truth",
             "Test RMSE",
@@ -171,24 +189,39 @@ def _conditioning_sweep(seed: int) -> tuple[str, list[tuple[float, float, float,
     return rendered, plot_data
 
 
-def _headline(seed: int) -> str:
-    """The single comparison the README quotes: same data, same objective, different answers."""
-    measured = [_sweep_row(1e-6, seed * replicate) for replicate in REPLICATES]
+def _rank_deficient(seed: int) -> str:
+    """Push past *nearly* dependent to *exactly* dependent, and watch the three come apart.
+
+    Every number here is categorical or robust on purpose. Whether a solver raises is a fact,
+    not a measurement; the rank the SVD reports is an integer; and the coefficient sizes differ
+    by thirteen orders of magnitude, so a bucket separates them with room to spare.
+    """
+    rng = np.random.default_rng(seed)
+    base = rng.standard_normal((200, 3))
+    X = np.column_stack([base, base[:, 0]])
+    y = base @ np.array([2.0, -1.0, 0.5]) + rng.standard_normal(200) * 0.1
+    X_train, X_test, y_train, y_test = ds.train_test_split(X, y, seed=seed)
+
     rows = []
     for method in METHODS:
-        if method == "svd":
-            rows.append(
-                [f"`{method}`", "— (reference)", fmt(float(np.median([r[3] for r in measured])))]
-            )
+        try:
+            fitted = LinearRegression(method=method).fit(X_train, y_train)  # type: ignore[arg-type]
+        except np.linalg.LinAlgError:
+            rows.append([f"`{method}`", "refuses to solve", "—", "—"])
             continue
+        size = float(np.linalg.norm(fitted.coef_))
         rows.append(
             [
                 f"`{method}`",
-                render_digits([row[1][method] for row in measured]),
-                fmt(float(np.median([row[3] for row in measured]))),
+                "returns an answer",
+                "larger than 1e10" if size > 1e10 else fmt(size),
+                fmt(rmse(y_test, fitted.predict(X_test)), 2),
             ]
         )
-    return table(["Solver", "Correct digits in the coefficients", "Test RMSE"], rows)
+    return table(
+        ["Solver", "On an exactly duplicated column", "Size of the coefficients", "Test RMSE"],
+        rows,
+    )
 
 
 def _plot(path: Path, plot_data: list[tuple[float, float, float, float]]) -> None:
@@ -228,5 +261,5 @@ def run(figures_dir: Path | None = None, *, seed: int = 1) -> dict[str, str]:
     return {
         "ols-solver-agreement": _solver_agreement(seed),
         "ols-conditioning": sweep,
-        "ols-headline": _headline(seed),
+        "ols-rank-deficient": _rank_deficient(seed),
     }

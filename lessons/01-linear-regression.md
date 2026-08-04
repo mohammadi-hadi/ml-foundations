@@ -71,25 +71,29 @@ number. The normal equations therefore begin their solve having already thrown a
 many digits as the problem itself costs.
 
 That is a claim with a number attached, so here is the number. Each row is the same regression
-on data generated to be progressively more collinear:
+on data generated to be progressively more collinear. The second column is reported *relative
+to the first row* — the absolute count sits about half a digit lower on the Linux machine that
+checks these numbers than on the macOS machine that generated them, because the two ship
+different BLAS libraries, and that offset applies to every row at once. Subtracting the first
+row removes it and leaves the rate, which is what the lesson is claiming:
 
 <!-- results: ols-conditioning -->
-| Condition number of X | Digits kept by `normal` | Digits kept by `qr` | Distance from the truth | Test RMSE |
+| Condition number of X | Digits lost by `normal` | Digits kept by `qr` | Distance from the truth | Test RMSE |
 |---|---:|---:|---:|---:|
-| 3e+01 | 13 | >= 14 | 1.2e+00 | 0.988 |
-| 3e+02 | 11 | >= 14 | 1.2e+01 | 0.989 |
-| 3e+03 | 9 | >= 14 | 1.2e+02 | 0.989 |
-| 3e+04 | 7 | >= 14 | 1.2e+03 | 0.989 |
-| 3e+05 | 5 | >= 14 | 1.2e+04 | 0.989 |
-| 3e+06 | 3 | >= 14 | 1.2e+05 | 0.989 |
-| 3e+07 | 1 | >= 14 | 1.2e+06 | 0.989 |
+| 3e+01 | 0 | >= 14 | 1.2e+00 | 0.988 |
+| 3e+02 | 2 | >= 14 | 1.2e+01 | 0.989 |
+| 3e+03 | 4 | >= 14 | 1.2e+02 | 0.989 |
+| 3e+04 | 6 | >= 14 | 1.2e+03 | 0.989 |
+| 3e+05 | 8 | >= 14 | 1.2e+04 | 0.989 |
+| 3e+06 | 10 | >= 14 | 1.2e+05 | 0.989 |
+| 3e+07 | 12 | >= 14 | 1.2e+06 | 0.989 |
 <!-- /results -->
 
 Read the first two columns down. Every factor of ten in the condition number costs the normal
-equations **two digits** and costs QR **none**. That is the squaring, visible as an arithmetic
-sequence: 13, 11, 9, 7, 5, 3, 1. By the last row the normal-equation coefficients have one
-correct digit left; a few rows further and they have none, and nothing in the fitted model
-announces it.
+equations **two digits** and costs QR **none**: 0, 2, 4, 6, 8, 10, 12. That is the squaring,
+visible as an arithmetic sequence. Twelve digits of a possible sixteen are gone by the last
+row, so barely more than one is left; a few rows further and there are none, and nothing in the
+fitted model announces it.
 
 ![Correct digits against the condition number](../figures/01-conditioning.png)
 
@@ -137,13 +141,21 @@ vectors that fit the data equally well, the smallest. That is a defensible choic
 a correct one — it is the answer to a question the data cannot settle — but returning it beats
 returning a number produced entirely by rounding.
 
-<!-- results: ols-headline -->
-| Solver | Correct digits in the coefficients | Test RMSE |
-|---|---:|---:|
-| `normal` | 3 | 0.989 |
-| `qr` | >= 14 | 0.989 |
-| `svd` | — (reference) | 0.989 |
+Here are all three on a design matrix whose fourth column is an exact copy of its first:
+
+<!-- results: ols-rank-deficient -->
+| Solver | On an exactly duplicated column | Size of the coefficients | Test RMSE |
+|---|---:|---:|---:|
+| `normal` | refuses to solve | — | — |
+| `qr` | returns an answer | larger than 1e10 | 0.11 |
+| `svd` | returns an answer | 1.803 | 0.11 |
 <!-- /results -->
+
+The middle row is the one to look at. **QR does not refuse.** It returns coefficients of
+magnitude `1e10` and above — numbers with no meaning at all, produced by dividing by a
+diagonal entry that should have been zero — and it predicts perfectly well while doing it,
+because the enormous coefficients very nearly cancel. Nothing about the fitted model announces
+that its parameters are noise. The normal equations at least have the decency to fail.
 
 ## Why the intercept is fitted by centring
 

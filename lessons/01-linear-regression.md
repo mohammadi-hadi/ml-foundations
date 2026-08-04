@@ -34,18 +34,27 @@ It is also, in a specific and measurable way, the worst of the three reasonable 
 | `qr` | Factors `X = QR`, then back-substitutes `Rw = Qᵀy` | ~2× |
 | `svd` | Factors `X = USVᵀ` and inverts the singular values worth trusting | ~6× |
 
-All three minimise the same objective, so on ordinary data they return the same answer:
+All three minimise the same objective, so on ordinary data they return the same answer. Every
+figure below is the median over nine independently generated datasets — a single draw of this
+measurement varies by about half a decade, which is enough for the seed rather than the method
+to decide the last digit:
 
 <!-- results: ols-solver-agreement -->
 | Solver | Digits shared with `svd` | Distance from the truth | Test RMSE |
 |---|---:|---:|---:|
-| `normal` | 15 | 0.214 | 1.048 |
-| `qr` | 15 | 0.214 | 1.048 |
-| `svd` | — | 0.214 | 1.048 |
+| `normal` | >= 14 | 0.211 | 0.999 |
+| `qr` | >= 14 | 0.211 | 0.999 |
+| `svd` | — (reference) | 0.211 | 0.999 |
 <!-- /results -->
 
-Fifteen shared digits out of a possible sixteen. On data like this the choice does not matter
-and anyone who tells you otherwise is selling something.
+Fourteen or more shared digits out of a possible sixteen, and identical distance from the
+truth. On data like this the choice does not matter, and anyone who tells you otherwise is
+selling something.
+
+*(Anything at or above fourteen digits is reported as `>= 14` rather than as a number. The
+difference between fourteen and fifteen significant digits is not a measurement of the method —
+it is the last bits of an arithmetic that got the answer right, and it moves with which BLAS
+library the machine has.)*
 
 ## The condition number
 
@@ -67,31 +76,32 @@ on data generated to be progressively more collinear:
 <!-- results: ols-conditioning -->
 | Condition number of X | Digits kept by `normal` | Digits kept by `qr` | Distance from the truth | Test RMSE |
 |---|---:|---:|---:|---:|
-| 2e+01 | 13 | 14 | 1.6e+00 | 0.954 |
-| 2e+02 | 11 | 14 | 1.6e+01 | 0.954 |
-| 2e+03 | 9 | 15 | 1.6e+02 | 0.954 |
-| 2e+04 | 7 | 14 | 1.6e+03 | 0.954 |
-| 2e+05 | 5 | 15 | 1.6e+04 | 0.954 |
-| 2e+06 | 3 | 14 | 1.6e+05 | 0.954 |
-| 2e+07 | 1 | 14 | 1.6e+06 | 0.954 |
+| 3e+01 | 13 | >= 14 | 1.2e+00 | 0.988 |
+| 3e+02 | 11 | >= 14 | 1.2e+01 | 0.989 |
+| 3e+03 | 9 | >= 14 | 1.2e+02 | 0.989 |
+| 3e+04 | 7 | >= 14 | 1.2e+03 | 0.989 |
+| 3e+05 | 5 | >= 14 | 1.2e+04 | 0.989 |
+| 3e+06 | 3 | >= 14 | 1.2e+05 | 0.989 |
+| 3e+07 | 1 | >= 14 | 1.2e+06 | 0.989 |
 <!-- /results -->
 
 Read the first two columns down. Every factor of ten in the condition number costs the normal
 equations **two digits** and costs QR **none**. That is the squaring, visible as an arithmetic
-sequence. By the last row the normal-equation coefficients have one correct digit left; a few
-rows further and they have none, and nothing in the fitted model announces it.
+sequence: 13, 11, 9, 7, 5, 3, 1. By the last row the normal-equation coefficients have one
+correct digit left; a few rows further and they have none, and nothing in the fitted model
+announces it.
 
-![Solver disagreement and prediction error against the condition number](../figures/01-conditioning.png)
+![Correct digits against the condition number](../figures/01-conditioning.png)
 
-*Coefficient error rises by two orders of magnitude for every one in the condition number when
-the normal equations are used, stays flat for QR, and never touches the prediction error at
-all.*
+*The slope of the red line is exactly −2 digits per decade, because forming `XᵀX` squares the
+conditioning before the solve begins. QR works at the conditioning of `X` itself and stays at
+machine precision throughout.*
 
 ## The trap: this does not show up in the fit
 
-Look at the last column of that table. **The test RMSE is identical in every row.** Seven
-orders of magnitude of conditioning, coefficients that end up wrong in the first digit, and
-the model predicts exactly as well as it did at the top.
+Look at the last column of that table. **The test RMSE is the same in every row**, to three
+decimals. Seven orders of magnitude of conditioning, coefficients that end up wrong in the
+first digit, and the model predicts exactly as well as it did at the top.
 
 This is the single most useful thing in this lesson. Ill-conditioning does not damage the
 predictions, because the direction the data actually varies in is still measured perfectly
@@ -130,9 +140,9 @@ returning a number produced entirely by rounding.
 <!-- results: ols-headline -->
 | Solver | Correct digits in the coefficients | Test RMSE |
 |---|---:|---:|
-| `normal` | 3 | 0.954 |
-| `qr` | 14 | 0.954 |
-| `svd` | — (reference) | 0.954 |
+| `normal` | 3 | 0.989 |
+| `qr` | >= 14 | 0.989 |
+| `svd` | — (reference) | 0.989 |
 <!-- /results -->
 
 ## Why the intercept is fitted by centring

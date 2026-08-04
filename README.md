@@ -14,7 +14,7 @@ rather than measurements.
 This one is built the other way round. Nothing in these lessons is asserted. Every table below
 was produced by a script in this repository, `make report` rewrites all of them from the code,
 and CI fails the build if a committed number no longer follows from committed code. Every
-estimator is pinned by a test that would fail if it were wrong.
+estimator is pinned by a test at one of the tiers described below.
 
 I am a machine learning scientist — PhD in NLP, now building production LLM and ranking
 systems — and this is the material I use when I teach fundamentals. It is a companion to

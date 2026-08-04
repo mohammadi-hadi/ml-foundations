@@ -1,4 +1,6 @@
-PY ?= python
+# python3, not python: a bare `python` is absent on macOS without pyenv and on most Linux
+# distributions. Override it if your interpreter is somewhere else.
+PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 

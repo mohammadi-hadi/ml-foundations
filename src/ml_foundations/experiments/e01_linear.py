@@ -12,10 +12,19 @@ Ill-conditioning produces both, and a lesson that shows only the first leaves th
 believing a better solver would have saved them.
 
 Numerical damage is reported as a count of surviving digits rather than as a floating-point
-distance. That is not a simplification for the reader's benefit: the distance itself is
+distance. That is not a simplification for the reader's benefit: the distance itself *is*
 rounding error, and rounding error depends on which BLAS the machine has, so a table of
 mantissas would differ between this laptop and the continuous integration runner and the
-drift check would have to be switched off. The count of digits is a property of the problem.
+drift check would have to be switched off.
+
+Two further precautions make the count itself stable, and both were added after measuring how
+much it moves. First, each figure is the **median over nine datasets** rather than one draw:
+a single draw varies by about half a decade from seed to seed, which is the same size as the
+variation a different BLAS would cause, and a cell sitting a tenth of a decade from an integer
+boundary would flip between machines. Second, anything at or above fourteen digits is reported
+as ``>= 14`` rather than as a number, because the difference between fourteen and fifteen
+significant digits out of a possible sixteen is not a measurement of anything — it is the last
+bits of an arithmetic that got the answer right.
 """
 
 from __future__ import annotations
@@ -35,15 +44,25 @@ METHODS = ("normal", "qr", "svd")
 SCALES = (1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7)
 #: float64 carries about sixteen significant decimal digits; nothing can share more.
 FLOAT64_DIGITS = 16
+#: At or above this, nothing measurable was lost and the exact count is not a measurement.
+FULL_PRECISION = 14
+#: Datasets each figure is a median over. Nine is enough to stop the seed deciding the digit.
+REPLICATES = tuple(range(1, 10))
 
 
-def shared_digits(estimate: np.ndarray, reference: np.ndarray) -> int:
+def shared_digits(estimate: np.ndarray, reference: np.ndarray) -> float:
     """How many significant decimal digits two solutions of the same problem agree on."""
     scale = float(np.linalg.norm(reference))
     gap = float(np.linalg.norm(estimate - reference))
     if gap == 0.0 or scale == 0.0:
-        return FLOAT64_DIGITS
-    return max(0, min(FLOAT64_DIGITS, math.floor(-math.log10(gap / scale))))
+        return float(FLOAT64_DIGITS)
+    return max(0.0, min(float(FLOAT64_DIGITS), -math.log10(gap / scale)))
+
+
+def render_digits(values: list[float]) -> str:
+    """Median digit count, floored, with everything near machine precision collapsed."""
+    median = float(np.median(values))
+    return f">= {FULL_PRECISION}" if median >= FULL_PRECISION else str(math.floor(median))
 
 
 def _fit_all(X: np.ndarray, y: np.ndarray) -> dict[str, LinearRegression | None]:
@@ -58,29 +77,62 @@ def _fit_all(X: np.ndarray, y: np.ndarray) -> dict[str, LinearRegression | None]
 
 
 def _solver_agreement(seed: int) -> str:
-    data = ds.make_linear(n_samples=400, n_features=8, noise=1.0, seed=seed)
+    """On well-behaved data the three solvers are the same estimator. Median over replicates."""
+    digits: dict[str, list[float]] = {method: [] for method in METHODS}
+    truth_gap: dict[str, list[float]] = {method: [] for method in METHODS}
+    test_error: dict[str, list[float]] = {method: [] for method in METHODS}
+
+    for replicate in REPLICATES:
+        data = ds.make_linear(n_samples=400, n_features=8, noise=1.0, seed=seed * replicate)
+        X_train, X_test, y_train, y_test = ds.train_test_split(data.X, data.y, seed=replicate)
+        assert data.coef is not None
+        fits = _fit_all(X_train, y_train)
+        reference = fits["svd"]
+        assert reference is not None
+        for method in METHODS:
+            fitted = fits[method]
+            assert fitted is not None
+            digits[method].append(shared_digits(fitted.coef_, reference.coef_))
+            truth_gap[method].append(float(np.linalg.norm(fitted.coef_ - data.coef)))
+            test_error[method].append(rmse(y_test, fitted.predict(X_test)))
+
+    rows = [
+        [
+            f"`{method}`",
+            "— (reference)" if method == "svd" else render_digits(digits[method]),
+            fmt(float(np.median(truth_gap[method]))),
+            fmt(float(np.median(test_error[method]))),
+        ]
+        for method in METHODS
+    ]
+    return table(
+        ["Solver", "Digits shared with `svd`", "Distance from the truth", "Test RMSE"],
+        rows,
+    )
+
+
+def _sweep_row(scale: float, seed: int) -> tuple[float, dict[str, float], float, float]:
+    """One dataset at one conditioning level: κ, per-solver digits, truth gap, test error."""
+    data = ds.make_collinear(
+        n_samples=400, n_features=6, independent_scale=scale, noise=1.0, seed=seed
+    )
     X_train, X_test, y_train, y_test = ds.train_test_split(data.X, data.y, seed=seed)
     assert data.coef is not None
-
     fits = _fit_all(X_train, y_train)
     reference = fits["svd"]
     assert reference is not None
 
-    rows = []
-    for method in METHODS:
-        fitted = fits[method]
-        assert fitted is not None
-        rows.append(
-            [
-                f"`{method}`",
-                "—" if method == "svd" else str(shared_digits(fitted.coef_, reference.coef_)),
-                fmt(float(np.linalg.norm(fitted.coef_ - data.coef))),
-                fmt(rmse(y_test, fitted.predict(X_test))),
-            ]
-        )
-    return table(
-        ["Solver", "Digits shared with `svd`", "Distance from the truth", "Test RMSE"],
-        rows,
+    digits = {
+        method: float("nan")
+        if fits[method] is None
+        else shared_digits(fits[method].coef_, reference.coef_)  # type: ignore[union-attr]
+        for method in ("normal", "qr")
+    }
+    return (
+        condition_number(X_train),
+        digits,
+        float(np.linalg.norm(reference.coef_ - data.coef)),
+        rmse(y_test, reference.predict(X_test)),
     )
 
 
@@ -88,43 +140,23 @@ def _conditioning_sweep(seed: int) -> tuple[str, list[tuple[float, float, float,
     rows = []
     plot_data: list[tuple[float, float, float, float]] = []
     for scale in SCALES:
-        data = ds.make_collinear(
-            n_samples=400, n_features=6, independent_scale=scale, noise=1.0, seed=seed
-        )
-        X_train, X_test, y_train, y_test = ds.train_test_split(data.X, data.y, seed=seed)
-        assert data.coef is not None
-
-        kappa = condition_number(X_train)
-        fits = _fit_all(X_train, y_train)
-        reference = fits["svd"]
-        assert reference is not None
-
-        digits = {}
-        raw_gap = {}
-        for method in ("normal", "qr"):
-            fitted = fits[method]
-            digits[method] = (
-                "refused" if fitted is None else str(shared_digits(fitted.coef_, reference.coef_))
-            )
-            raw_gap[method] = (
-                float("nan")
-                if fitted is None
-                else float(np.linalg.norm(fitted.coef_ - reference.coef_))
-            )
-
-        truth_gap = float(np.linalg.norm(reference.coef_ - data.coef))
-        test_error = rmse(y_test, reference.predict(X_test))
+        measured = [_sweep_row(scale, seed * replicate) for replicate in REPLICATES]
+        kappa = float(np.median([row[0] for row in measured]))
+        normal = [row[1]["normal"] for row in measured]
+        qr = [row[1]["qr"] for row in measured]
+        truth_gap = float(np.median([row[2] for row in measured]))
+        test_error = float(np.median([row[3] for row in measured]))
 
         rows.append(
             [
                 f"{kappa:.0e}",
-                digits["normal"],
-                digits["qr"],
+                "refused" if np.isnan(normal).all() else render_digits(normal),
+                render_digits(qr),
                 f"{truth_gap:.1e}",
                 fmt(test_error),
             ]
         )
-        plot_data.append((kappa, raw_gap["normal"], raw_gap["qr"], test_error))
+        plot_data.append((kappa, float(np.median(normal)), float(np.median(qr)), test_error))
 
     rendered = table(
         [
@@ -141,24 +173,19 @@ def _conditioning_sweep(seed: int) -> tuple[str, list[tuple[float, float, float,
 
 def _headline(seed: int) -> str:
     """The single comparison the README quotes: same data, same objective, different answers."""
-    data = ds.make_collinear(n_samples=400, n_features=6, independent_scale=1e-6, seed=seed)
-    X_train, X_test, y_train, y_test = ds.train_test_split(data.X, data.y, seed=seed)
-    fits = _fit_all(X_train, y_train)
-    reference = fits["svd"]
-    assert reference is not None
+    measured = [_sweep_row(1e-6, seed * replicate) for replicate in REPLICATES]
     rows = []
     for method in METHODS:
-        fitted = fits[method]
-        if fitted is None:
-            rows.append([f"`{method}`", "refused to solve", "—"])
+        if method == "svd":
+            rows.append(
+                [f"`{method}`", "— (reference)", fmt(float(np.median([r[3] for r in measured])))]
+            )
             continue
         rows.append(
             [
                 f"`{method}`",
-                "— (reference)"
-                if method == "svd"
-                else str(shared_digits(fitted.coef_, reference.coef_)),
-                fmt(rmse(y_test, fitted.predict(X_test))),
+                render_digits([row[1][method] for row in measured]),
+                fmt(float(np.median([row[3] for row in measured]))),
             ]
         )
     return table(["Solver", "Correct digits in the coefficients", "Test RMSE"], rows)
@@ -169,34 +196,29 @@ def _plot(path: Path, plot_data: list[tuple[float, float, float, float]]) -> Non
         if ax is None:
             return
         kappa = [row[0] for row in plot_data]
-        ax.loglog(
+        ax.semilogx(
             kappa,
-            [max(row[1], 1e-18) for row in plot_data],
+            [row[1] for row in plot_data],
             marker="o",
             color=ALARM,
-            label="normal equations, distance from the SVD solution",
+            linewidth=1.8,
+            label="normal equations",
         )
-        ax.loglog(
+        ax.semilogx(
             kappa,
-            [max(row[2], 1e-18) for row in plot_data],
+            [row[2] for row in plot_data],
             marker="s",
             color=ACCENT,
-            label="QR, distance from the SVD solution",
+            linewidth=1.8,
+            label="QR",
         )
-        ax.loglog(
-            kappa,
-            [row[3] for row in plot_data],
-            marker="^",
-            color=MUTED,
-            label="test RMSE, every solver",
-        )
+        ax.axhline(FLOAT64_DIGITS, color=MUTED, linestyle="--", linewidth=1)
+        ax.text(kappa[0], FLOAT64_DIGITS + 0.25, "everything float64 has", fontsize=7, color=MUTED)
+        ax.set_ylim(0, FLOAT64_DIGITS + 1.5)
         ax.set_xlabel("condition number of the design matrix")
-        ax.set_ylabel("error")
-        ax.set_title(
-            "Ill-conditioning wrecks the coefficients and leaves the predictions alone",
-            fontsize=10,
-        )
-        ax.legend(frameon=False, fontsize=8, loc="upper left")
+        ax.set_ylabel("correct digits in the coefficients")
+        ax.set_title("Two digits lost per decade, and the predictions never notice", fontsize=10)
+        ax.legend(frameon=False, fontsize=8, loc="lower left")
 
 
 def run(figures_dir: Path | None = None, *, seed: int = 1) -> dict[str, str]:

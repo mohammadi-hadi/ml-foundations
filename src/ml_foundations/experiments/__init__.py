@@ -19,6 +19,7 @@ from ml_foundations.experiments import (
     e03_regularization,
     e04_logistic,
     e05_trees,
+    e06_evaluation,
 )
 from ml_foundations.report import ReportError
 
@@ -46,6 +47,12 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(4, "logistic-regression", "Logistic regression, and metrics that lie", e04_logistic.run),
     Lesson(5, "trees-and-ensembles", "Trees, and why one is never enough", e05_trees.run),
+    Lesson(
+        6,
+        "evaluation",
+        "Evaluation: the part that decides whether any of it was real",
+        e06_evaluation.run,
+    ),
 )
 
 

@@ -1,0 +1,26 @@
+{
+  "title": "ML Foundations: machine learning fundamentals implemented from scratch and verified",
+  "description": "Six lessons implementing machine learning fundamentals in numpy: least squares by three solvers, gradient descent, regularisation, logistic regression, trees and ensembles, and evaluation. Every estimator is pinned by a test at one of three tiers - exact agreement with an independent reference implementation, properties that hold exactly without any reference, or recovery of parameters known before the data existed. Every number quoted in the lessons is injected from the code by a report command, and continuous integration regenerates them on different hardware and fails the build on any drift, so the prose cannot disagree with what the code does.",
+  "creators": [
+    {"name": "Mohammadi, Hadi", "orcid": "0000-0003-0860-9200", "affiliation": "Utrecht University"}
+  ],
+  "license": "mit",
+  "upload_type": "software",
+  "version": "v0.1.0",
+  "keywords": [
+    "machine learning",
+    "from scratch",
+    "numpy",
+    "teaching",
+    "reproducible research",
+    "evaluation",
+    "numerical linear algebra"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/mohammadi-hadi/ml-foundations",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

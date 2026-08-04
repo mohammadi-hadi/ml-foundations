@@ -62,7 +62,7 @@ Twenty training sets, drawn from the same world, each fitted with each model:
 |---|---:|---:|---:|---:|
 | one deep tree | 3.935 | 5.796 | 10.732 | 10.761 |
 | bagging, 25 trees | 4.115 | 1.199 | 6.314 | 6.338 |
-| random forest, 25 trees | 5.545 | 0.855 | 7.400 | 7.392 |
+| random forest, 25 trees | 5.499 | 0.851 | 7.351 | 7.346 |
 | boosting, 100 rounds | 1.640 | 1.170 | 3.811 | 3.827 |
 <!-- /results -->
 
@@ -78,8 +78,8 @@ wrong, so the ensemble becomes capable of more with every round.
 
 **The random forest is worse than plain bagging here**, and that is not a mistake in the setup.
 Restricting each split to three of ten features does what it is supposed to — it gives the
-lowest variance in the table, 0.855 — but on this surface it also raises the bias from 4.12 to
-5.55, because only five of the ten features carry signal and a random three of ten often
+lowest variance in the table, 0.851 — but on this surface it also raises the bias from 4.12 to
+5.50, because only five of the ten features carry signal and a random three of ten often
 contains none of them. The variance floor of an average is `ρσ²`, set by how correlated the
 trees are, and decorrelating them lowers that floor; here the price of decorrelation exceeded
 the benefit. Random forests are a good default, not a free lunch.
@@ -132,8 +132,8 @@ which no linear model can fit.
 <!-- results: model-choice -->
 | Data | Ridge | One tree | Random forest | Boosting |
 |---|---:|---:|---:|---:|
-| `linear` | 1.067 | 4.167 | 3.158 | 2.161 |
-| `Friedman` | 2.796 | 3.421 | 2.507 | 1.824 |
+| `linear` | 1.067 | 4.167 | 3.134 | 2.161 |
+| `Friedman` | 2.796 | 3.421 | 2.622 | 1.824 |
 <!-- /results -->
 
 On linear data, **ridge beats boosting by a factor of two and a single tree by a factor of
@@ -178,14 +178,26 @@ the checks are layered:
   that perturbation, a relative `1e-13` on every impurity score, and requires the predictions
   not to move at all.
 
-  Two things in [`_best_split`](../src/ml_foundations/trees.py) make that possible. It centres
-  the targets first, because `Σy² - (Σy)²/n` on uncentred data is a difference of two nearly
-  equal numbers and in a nearly pure node almost every digit cancels — the same naive-variance
-  blunder [lesson 1](01-linear-regression.md) is about, met again three lessons later. And it
-  quantises the scores before comparing them, so ties resolve by position rather than by the
-  last bit. Remove either and a forty-tree forest's predictions move by **0.60** under that
-  jitter; with both, they do not move at all. This is the only reason the numbers on this page
-  can be verified by a machine that is not the one that produced them.
+  Three things make that possible, and each was added after a version of this repository
+  failed its own check on a machine that was not the one that wrote it:
+
+  1. **The targets are centred** before the impurity is accumulated. `Σy² - (Σy)²/n` on
+     uncentred data is a difference of two nearly equal numbers, and in a nearly pure node
+     almost every significant digit cancels — the naive-variance blunder
+     [lesson 1](01-linear-regression.md) is about, met again three lessons later.
+  2. **Candidate scores are quantised** before they are compared, so a tie is resolved by
+     position — first feature, lowest threshold — rather than by the last bit of a sum.
+  3. **Each node's random feature subset is keyed to its position in the tree**, not drawn
+     from a generator shared across the tree. This one mattered most. `np.sin` may differ by
+     one unit in the last place between C libraries, so the Friedman targets are not
+     bit-identical across platforms; with a shared generator, one flipped split re-rolled the
+     feature subset of *every node grown after it*, and a forest's test error moved by **seven
+     per cent** from a relative change of 2e-16. Keyed by position, the same perturbation
+     moves it by 1e-14.
+
+  A test injects each of those perturbations and requires the predictions not to move. This is
+  the only reason the numbers on this page can be verified by a machine that is not the one
+  that produced them.
 
 ## Takeaways
 

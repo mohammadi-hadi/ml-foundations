@@ -255,3 +255,37 @@ def test_the_split_choice_survives_jitter_in_the_impurity_arithmetic(
         noisy = build().fit(data.X, data.y).predict(data.X)
         monkeypatch.setattr(trees, "_impurity_total", original)
         np.testing.assert_allclose(clean, noisy, rtol=1e-9, atol=1e-9)
+
+
+def test_a_forest_does_not_reorganise_itself_over_one_unit_in_the_last_place() -> None:
+    """The perturbation that actually reaches this code, and the one that caught the bug.
+
+    ``np.sin`` is allowed to differ by one unit in the last place between C libraries, so the
+    Friedman targets are not bit-identical on macOS and on Linux. That is a relative change of
+    2e-16 and it cannot change any split that is genuinely better than its alternatives.
+
+    It used to change the model completely. Each node drew its random feature subset from a
+    generator shared across the tree, so a single flipped split re-rolled the subset of every
+    node grown afterwards, and a forest's test error moved by seven per cent. Keying the draw
+    to the node's position instead confines a flip to its own subtree, and what is left is the
+    last bits of the leaf averages.
+    """
+    data = ds.make_friedman1(n_samples=600, noise=1.0, seed=5)
+    X_train, X_test, y_train, _ = ds.train_test_split(data.X, data.y, test_size=0.4, seed=5)
+    rng = np.random.default_rng(0)
+    nudged = np.nextafter(y_train, np.where(rng.random(y_train.shape) < 0.5, -np.inf, np.inf))
+    assert float(np.max(np.abs(nudged - y_train) / np.abs(y_train))) < 1e-15
+
+    for leaf in (1, 5):
+        forest = BaggedTrees(
+            n_estimators=20, max_depth=12, min_samples_leaf=leaf, max_features=3, seed=5
+        )
+        base = forest.fit(X_train, y_train).predict(X_test)
+        moved = (
+            BaggedTrees(
+                n_estimators=20, max_depth=12, min_samples_leaf=leaf, max_features=3, seed=5
+            )
+            .fit(X_train, nudged)
+            .predict(X_test)
+        )
+        np.testing.assert_allclose(base, moved, rtol=1e-10, atol=1e-10)

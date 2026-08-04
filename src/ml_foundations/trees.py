@@ -97,33 +97,46 @@ class DecisionTree:
     def fit(self, X: Array, y: Array) -> Self:
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
-        self._rng = np.random.default_rng(self.seed)
-        self.root_ = self._grow(X, y, depth=0)
+        self.root_ = self._grow(X, y, depth=0, position=1)
         return self
 
-    def _grow(self, X: Array, y: Array, *, depth: int) -> Node:
+    def _grow(self, X: Array, y: Array, *, depth: int, position: int) -> Node:
         node = Node(value=float(y.mean()), n_samples=y.shape[0])
         if depth >= self.max_depth or y.shape[0] < self.min_samples_split or y.std() == 0.0:
             return node
 
-        split = self._best_split(X, y)
+        split = self._best_split(X, y, position=position)
         if split is None:
             return node
         feature, threshold = split
         mask = X[:, feature] <= threshold
         node.feature = feature
         node.threshold = threshold
-        node.left = self._grow(X[mask], y[mask], depth=depth + 1)
-        node.right = self._grow(X[~mask], y[~mask], depth=depth + 1)
+        # Heap numbering: a node's children are 2k and 2k+1. What that buys is in
+        # `_candidate_features` — each node's random feature subset depends on where it sits
+        # in the tree, not on how many nodes were grown before it.
+        node.left = self._grow(X[mask], y[mask], depth=depth + 1, position=2 * position)
+        node.right = self._grow(X[~mask], y[~mask], depth=depth + 1, position=2 * position + 1)
         return node
 
-    def _candidate_features(self, n_features: int) -> NDArray[np.intp]:
+    def _candidate_features(self, n_features: int, position: int) -> NDArray[np.intp]:
+        """Which features this node may split on, drawn from a generator keyed to its position.
+
+        The obvious implementation keeps one generator per tree and draws from it as growth
+        proceeds. That makes every node's subset depend on how many nodes preceded it, so a
+        single split changing anywhere re-rolls the dice for the entire rest of the tree — and
+        splits do change, because a difference in the last bit of one target is enough to flip
+        a near-tie. Keying the draw to the node's position in the tree instead confines the
+        consequences of a flip to the subtree beneath it.
+        """
         if self.max_features is None or self.max_features >= n_features:
             return np.arange(n_features, dtype=np.intp)
-        chosen = self._rng.choice(n_features, size=self.max_features, replace=False)
-        return np.asarray(chosen, dtype=np.intp)
+        rng = np.random.default_rng((self.seed, position))
+        return np.asarray(
+            rng.choice(n_features, size=self.max_features, replace=False), dtype=np.intp
+        )
 
-    def _best_split(self, X: Array, y: Array) -> tuple[int, float] | None:
+    def _best_split(self, X: Array, y: Array, *, position: int = 1) -> tuple[int, float] | None:
         n_samples = y.shape[0]
         # Centre the targets before accumulating anything. Squared-error impurity is unchanged
         # by shifting y, so this is mathematically a no-op — and numerically it is the whole
@@ -151,7 +164,7 @@ class DecisionTree:
         best_score = _quantise(best_score, quantum)
         best: tuple[int, float] | None = None
 
-        for feature in self._candidate_features(X.shape[1]):
+        for feature in self._candidate_features(X.shape[1], position):
             order = np.argsort(X[:, feature], kind="mergesort")
             values = X[order, feature]
             targets = work[order]

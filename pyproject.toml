@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ml-foundations"
+version = "0.1.0"
+description = "Machine learning fundamentals implemented from scratch, checked against reference implementations, with every number in the lessons regenerated from code"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Hadi Mohammadi" }]
+requires-python = ">=3.12"
+keywords = ["machine-learning", "from-scratch", "teaching", "numpy", "evaluation"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Intended Audience :: Education",
+]
+# The implementations depend on numpy and nothing else. scikit-learn is not a
+# runtime dependency of this package: it appears only as the thing the
+# implementations are checked against, and in the experiments that need a
+# bundled real dataset.
+dependencies = ["numpy>=2.0"]
+
+[project.optional-dependencies]
+experiments = ["scikit-learn>=1.5", "matplotlib>=3.8"]
+dev = [
+  "scikit-learn>=1.5",
+  "matplotlib>=3.8",
+  "pytest>=8.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/mohammadi-hadi/ml-foundations"
+Author = "https://mohammadi.cv"
+
+[project.scripts]
+ml-foundations = "ml_foundations.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ml_foundations"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "N"]
+
+[tool.ruff.lint.per-file-ignores]
+# Single capital letters are the notation of the subject: X is a design matrix,
+# not a badly named variable. Renaming them to `x` would make the code harder to
+# read against any textbook.
+"src/ml_foundations/*.py" = ["N803", "N806"]
+"src/ml_foundations/**/*.py" = ["N803", "N806"]
+"tests/*.py" = ["N803", "N806"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "matplotlib.*", "scipy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

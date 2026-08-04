@@ -1,0 +1,9 @@
+# Exact versions for the results-drift check in CI. The numbers committed to the
+# lessons were produced by these, and by nothing else: a matrix factorisation's last digits
+# depend on the BLAS the wheel was built against, so an unpinned check would fail on a minor
+# release and be switched off. Bump these deliberately, re-run `make report`, and commit
+# whatever moved.
+numpy==2.5.1
+scipy==1.18.0
+scikit-learn==1.9.0
+matplotlib==3.11.1

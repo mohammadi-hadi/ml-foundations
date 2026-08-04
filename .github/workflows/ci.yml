@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+      - run: mypy src
+      - run: pytest
+
+  results:
+    # The promise the README makes: every number in the lessons is regenerated from the code,
+    # and the build fails if a committed one no longer follows from it.
+    #
+    # Pinned to one operating system, one Python and exact library versions. The last digits of
+    # a matrix factorisation depend on which BLAS is installed, so running this check across a
+    # matrix would produce failures nobody could act on, and the check would be switched off
+    # within a week. One reproducible environment is a guarantee; several are a lottery.
+    name: committed numbers match the code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-results.txt
+      - run: pip install -e . --no-deps
+      - run: ml-foundations report --root .
+      - name: fail if any committed result moved
+        run: |
+          git diff --exit-code -- README.md lessons \
+            || { echo "::error::a lesson is out of date — run 'make report' and commit"; exit 1; }

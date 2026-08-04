@@ -4,6 +4,10 @@ title: "ML Foundations: machine learning fundamentals implemented from scratch a
 type: software
 version: "0.1.0"
 date-released: "2026-08-04"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21797931
+    description: Zenodo concept DOI (all versions)
 license: MIT
 repository-code: "https://github.com/mohammadi-hadi/ml-foundations"
 url: "https://github.com/mohammadi-hadi/ml-foundations"

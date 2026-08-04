@@ -5,6 +5,7 @@ is checked against an independent reference, and every number in every lesson is
 from the code by continuous integration.**
 
 [![CI](https://github.com/mohammadi-hadi/ml-foundations/actions/workflows/ci.yml/badge.svg)](https://github.com/mohammadi-hadi/ml-foundations/actions/workflows/ci.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21797931.svg)](https://doi.org/10.5281/zenodo.21797931)
 
 There are a great many "ML from scratch" repositories. Most of them share two problems: the
 implementations are never checked against anything, so subtle errors survive indefinitely, and

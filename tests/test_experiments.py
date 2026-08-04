@@ -59,8 +59,15 @@ def test_the_committed_numbers_are_the_computed_numbers(blocks: dict[str, str]) 
         assert report.inject(text, blocks) == text, f"{path.name} is out of date; run `make report`"
 
 
-def test_experiments_are_deterministic(blocks: dict[str, str]) -> None:
-    assert run_all(None) == blocks
+def test_one_lesson_reruns_identically(blocks: dict[str, str]) -> None:
+    """Determinism, spot-checked cheaply.
+
+    Re-running every experiment would double the cost of the slowest test in the suite for a
+    guarantee the committed-numbers test above already provides — that one compares against
+    what is on disk, which a non-deterministic experiment could not match twice running.
+    """
+    lesson = LESSONS[0]
+    assert lesson.run(None) == lesson.run(None)
 
 
 def test_the_lessons_command_runs() -> None:

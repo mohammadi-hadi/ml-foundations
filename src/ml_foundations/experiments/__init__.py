@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from ml_foundations.experiments import e01_linear
+from ml_foundations.experiments import e01_linear, e02_gradient_descent
 from ml_foundations.report import ReportError
 
 
@@ -31,6 +31,7 @@ class Lesson:
 
 LESSONS: tuple[Lesson, ...] = (
     Lesson(1, "linear-regression", "Linear regression, solved three ways", e01_linear.run),
+    Lesson(2, "gradient-descent", "Gradient descent and its friends", e02_gradient_descent.run),
 )
 
 

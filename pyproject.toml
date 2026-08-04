@@ -57,6 +57,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "N"]
 "src/ml_foundations/*.py" = ["N803", "N806"]
 "src/ml_foundations/**/*.py" = ["N803", "N806"]
 "tests/*.py" = ["N803", "N806"]
+# Experiment modules render typeset labels into markdown tables. "×" is the character that
+# belongs in the output; it is not a lookalike for the letter x.
+"src/ml_foundations/experiments/*.py" = ["N803", "N806", "RUF001"]
 
 [tool.mypy]
 python_version = "3.12"

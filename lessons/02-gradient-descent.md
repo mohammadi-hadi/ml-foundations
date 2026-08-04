@@ -23,16 +23,20 @@ exactly, and neither is a rule of thumb:
 - Gradient descent converges **if and only if** the step size is below `2/L`.
 - Of the step sizes that converge, the fastest is `2/(L + m)`.
 
-Both are computable before training starts. Here is what happens at step sizes around them:
+Both are computable before training starts. Here is what happens at step sizes around them.
+Step counts throughout this lesson are reported to two significant figures: near convergence
+the error falls by a factor of about 1.0005 per step, so the exact step at which a run crosses
+a threshold moves by tens either way with the arithmetic of the machine, and pretending
+otherwise would put five digits on a two-digit measurement.
 
 <!-- results: gd-learning-rate -->
 | Step size | Value | Steps to a relative error of 1e-8 | Final distance |
 |---|---:|---:|---:|
-| 0.1 × 2/L | 0.0871 | 113 | < 1e-12 |
+| 0.1 × 2/L | 0.0871 | 110 | < 1e-12 |
 | 0.5 × 2/L | 0.4355 | 15 | < 1e-12 |
 | 2/(L + m) — the optimum | 0.5122 | 11 | < 1e-12 |
 | 0.9 × 2/L | 0.7839 | 80 | < 1e-12 |
-| 0.99 × 2/L | 0.8623 | 884 | < 1e-12 |
+| 0.99 × 2/L | 0.8623 | 880 | < 1e-12 |
 | 1 × 2/L | 0.8710 | did not arrive | 5.6e-01 |
 | 1.01 × 2/L | 0.8797 | diverged | — |
 | 1.1 × 2/L | 0.9581 | diverged | — |
@@ -50,7 +54,7 @@ that direction flips sign and keeps its size, forever. The run neither converges
 explodes — it sits 0.56 away from the answer and oscillates. A loss curve that has gone flat
 does not mean the optimiser is finished.
 
-**Bigger is not faster.** The largest stable step takes **884 steps**; the theoretically
+**Bigger is not faster.** The largest stable step takes **880 steps**; the theoretically
 optimal one takes **11**. Turning the learning rate up until just before it breaks is a
 popular habit and it is eighty times slower than doing the arithmetic.
 
@@ -67,16 +71,16 @@ and Adam at its published default.
 <!-- results: gd-conditioning -->
 | Condition number of X | …of the Hessian (κ) | √κ | Plain descent | Momentum | Adam |
 |---|---:|---:|---:|---:|---:|
-| 8 | 68 | 8 | 1,157 | 94 | 5,102 |
-| 25 | 615 | 25 | 10,326 | 295 | 9,047 |
-| 50 | 2468 | 50 | 40,432 | 601 | 11,729 |
-| 124 | 15461 | 124 | 238,712 | 1,520 | 17,932 |
+| 8 | 68 | 8 | 1,200 | 94 | 5,100 |
+| 25 | 615 | 25 | 10,000 | 300 | 9,000 |
+| 50 | 2468 | 50 | 40,000 | 600 | 12,000 |
+| 124 | 15461 | 124 | 240,000 | 1,500 | 18,000 |
 <!-- /results -->
 
 Read the second column against the fourth. `κ` grows by a factor of 227 down the table and
-plain descent's step count grows by a factor of 206. Read the third against the fifth: `√κ`
-grows by 15.5 and momentum's step count by 16.2. The two predictions are not approximately
-right, they are right.
+plain descent's step count grows by a factor of 200. Read the third against the fifth: `√κ`
+grows by a factor of 15.5 and momentum's step count by 16. The two predictions are not
+approximately right, they are right.
 
 The practical size of this: **a five-parameter linear regression takes a quarter of a million
 gradient steps** on the last row. There is nothing pathological about that data — it is six
@@ -84,8 +88,8 @@ features that happen to be strongly correlated, which is the normal condition of
 features. If a model is training slowly, the first thing to look at is the conditioning of the
 inputs, and the cheapest fix is to standardise them.
 
-Adam is the interesting column. It is **worse than plain descent on the easy problem** — 5,102
-steps against 1,157 — and better by a factor of thirteen on the hard one. Its per-coordinate
+Adam is the interesting column. It is **worse than plain descent on the easy problem** — 5,100
+steps against 1,200 — and better by a factor of thirteen on the hard one. Its per-coordinate
 step sizes are a partial substitute for knowing the curvature, which is worth nothing when the
 curvature is uniform and worth a great deal when it is not. That is also why it is the default
 in deep learning, where nobody can compute `L` and the conditioning is dreadful.

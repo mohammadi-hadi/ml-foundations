@@ -60,12 +60,13 @@ def test_the_stability_threshold_is_exactly_two_over_the_curvature() -> None:
     gradient, _, curvature = least_squares_parts(X, y)
     threshold = 2.0 / curvature
 
-    just_below = minimise(
-        gradient, np.zeros(X.shape[1]), SGD(lr=threshold * 0.98), n_steps=20000, optimum=exact
-    )
-    just_above = minimise(
-        gradient, np.zeros(X.shape[1]), SGD(lr=threshold * 1.02), n_steps=20000, optimum=exact
-    )
+    with np.errstate(over="ignore", invalid="ignore"):
+        just_below = minimise(
+            gradient, np.zeros(X.shape[1]), SGD(lr=threshold * 0.98), n_steps=20000, optimum=exact
+        )
+        just_above = minimise(
+            gradient, np.zeros(X.shape[1]), SGD(lr=threshold * 1.02), n_steps=20000, optimum=exact
+        )
     assert not just_below.diverged
     assert just_above.diverged
 

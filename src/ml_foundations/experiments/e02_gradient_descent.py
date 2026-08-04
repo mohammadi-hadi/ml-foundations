@@ -38,6 +38,12 @@ from ml_foundations.report import table
 #: Below this, a distance is rounding error rather than a measurement, and its digits differ
 #: between machines. Reporting the bound instead keeps the drift check meaningful.
 NEGLIGIBLE = 1e-12
+#: Significant figures for a step count. The step at which a smoothly converging run crosses a
+#: threshold is not determined to more than this: near the end the error falls by a factor of
+#: 1.0005 per step, so an arithmetic difference of a fraction of a per cent — the kind a
+#: different BLAS produces — moves the crossing by tens of steps. Two figures is what the
+#: measurement supports, and it is all the lesson's argument about scaling needs.
+STEP_FIGURES = 2
 
 TOLERANCE = 1e-8
 SCALES = (0.3, 0.1, 0.05, 0.02)
@@ -49,12 +55,20 @@ def _distance(value: float) -> str:
     return f"< {NEGLIGIBLE:.0e}" if value < NEGLIGIBLE else f"{value:.1e}"
 
 
+def _steps_taken(count: int) -> str:
+    """A step count, rounded to :data:`STEP_FIGURES` significant figures."""
+    if count == 0:
+        return "0"
+    magnitude = 10 ** max(0, len(str(count)) - STEP_FIGURES)
+    return f"{round(count / magnitude) * magnitude:,}"
+
+
 def _outcome(trace: Trace) -> str:
     if trace.diverged:
         return "diverged"
     if trace.steps_to_tolerance is None:
         return "did not arrive"
-    return f"{trace.steps_to_tolerance:,}"
+    return _steps_taken(trace.steps_to_tolerance)
 
 
 def _centred(data: ds.Dataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -123,7 +137,7 @@ def _steps(gradient: Gradient, exact: np.ndarray, optimizer: Optimizer) -> str:
     )
     if trace.steps_to_tolerance is None:
         return "diverged" if trace.diverged else f"> {STEP_BUDGET:,}"
-    return f"{trace.steps_to_tolerance:,}"
+    return _steps_taken(trace.steps_to_tolerance)
 
 
 def _conditioning_table(seed: int) -> str:

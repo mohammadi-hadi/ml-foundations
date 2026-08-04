@@ -17,6 +17,7 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 from ml_foundations import datasets as ds
+from ml_foundations import trees
 from ml_foundations.ensembles import BaggedTrees, GradientBoostedTrees
 from ml_foundations.metrics import rmse, roc_auc
 from ml_foundations.trees import DecisionTree
@@ -212,3 +213,38 @@ def test_a_classification_tree_ranks_better_than_chance() -> None:
     X_train, X_test, y_train, y_test = ds.train_test_split(data.X, data.y, seed=112)
     fitted = DecisionTree(criterion="gini", max_depth=4, min_samples_leaf=10).fit(X_train, y_train)
     assert roc_auc(y_test, fitted.predict_proba(X_test)) > 0.7
+
+
+def test_the_split_choice_survives_jitter_in_the_impurity_arithmetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Determinism against last-bit arithmetic — which is what makes CI's drift check possible.
+
+    ``numpy.sum`` adds in blocks whose size depends on the machine's vector width, so the same
+    sum can differ in its final bits between platforms. That is far too small to change which
+    split is genuinely best, and quite large enough to change which of two *equally* good
+    splits a comparison happens to prefer — and a greedy tree turns one flipped split at the
+    root into a different model.
+
+    The jitter injected here is exactly that perturbation: a relative 1e-13 on every impurity
+    score, applied where the platform's own differences would appear. Without the quantisation
+    in ``_best_split`` this test fails, and the numbers in lesson 5 depend on the hardware.
+    """
+    data = ds.make_friedman1(n_samples=400, noise=1.0, seed=113)
+    original = trees._impurity_total
+    rng = np.random.default_rng(114)
+
+    def jittered(criterion: str, count: np.ndarray, total: np.ndarray, total_sq: np.ndarray):  # type: ignore[no-untyped-def]
+        out = original(criterion, count, total, total_sq)  # type: ignore[arg-type]
+        return out * (1.0 + rng.standard_normal(out.shape) * 1e-13)
+
+    for build in (
+        lambda: DecisionTree(max_depth=10),
+        lambda: BaggedTrees(n_estimators=8, max_depth=10, max_features=3, seed=1),
+        lambda: GradientBoostedTrees(n_estimators=25, max_depth=3),
+    ):
+        clean = build().fit(data.X, data.y).predict(data.X)
+        monkeypatch.setattr(trees, "_impurity_total", jittered)
+        noisy = build().fit(data.X, data.y).predict(data.X)
+        monkeypatch.setattr(trees, "_impurity_total", original)
+        np.testing.assert_allclose(clean, noisy, rtol=1e-9, atol=1e-9)

@@ -26,6 +26,17 @@ from numpy.typing import NDArray
 Array = NDArray[np.float64]
 Criterion = Literal["mse", "gini"]
 
+#: Candidate splits closer than this — relative to the impurity being reduced — count as tied.
+#: See :meth:`DecisionTree._best_split` for why a greedy tree needs this to be deterministic.
+TIE_RESOLUTION = 1e-9
+
+
+def _quantise(value: Array | np.float64, quantum: float) -> Array | np.float64:
+    """Round to a multiple of ``quantum``, so that near-ties become exact ties."""
+    if quantum <= 0.0:
+        return value
+    return np.round(value / quantum) * quantum
+
 
 @dataclass
 class Node:
@@ -120,6 +131,16 @@ class DecisionTree:
             np.array([float(y.sum())]),
             np.array([float((y**2).sum())]),
         )[0]
+        # Candidate scores are quantised before they are compared. Two splits are often equally
+        # good to within the last bits of a floating-point sum, and which one then wins depends
+        # on how numpy blocked the addition — which depends on the machine. A greedy tree
+        # amplifies that: one flipped split at the root gives a completely different subtree, so
+        # a model that should be a deterministic function of the data becomes a function of the
+        # hardware. Rounding to a part in a billion of the parent's impurity is far below any
+        # difference that means anything and far above any that does not, and ties then resolve
+        # by position: the first feature and the lowest threshold win, on every machine.
+        quantum = abs(float(best_score)) * TIE_RESOLUTION
+        best_score = _quantise(best_score, quantum)
         best: tuple[int, float] | None = None
 
         for feature in self._candidate_features(X.shape[1]):
@@ -144,9 +165,11 @@ class DecisionTree:
             allowed = (values[:-1] < values[1:]) & (
                 (left_count >= self.min_samples_leaf) & (right_count >= self.min_samples_leaf)
             )
-            score = np.where(allowed, score, np.inf)
+            score = np.where(allowed, _quantise(score, quantum), np.inf)
+            # argmin returns the *first* minimum, so among quantised ties the lowest threshold
+            # wins; the strict comparison below then keeps the earliest feature.
             position = int(np.argmin(score))
-            if score[position] < best_score - 1e-12:
+            if score[position] < best_score:
                 best_score = float(score[position])
                 best = (int(feature), float((values[position] + values[position + 1]) / 2.0))
         return best

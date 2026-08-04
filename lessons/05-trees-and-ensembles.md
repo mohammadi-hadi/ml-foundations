@@ -61,8 +61,8 @@ Twenty training sets, drawn from the same world, each fitted with each model:
 | Model | Bias² | Variance | Sum | Measured test MSE |
 |---|---:|---:|---:|---:|
 | one deep tree | 3.935 | 5.796 | 10.732 | 10.761 |
-| bagging, 25 trees | 4.124 | 1.201 | 6.324 | 6.349 |
-| random forest, 25 trees | 5.545 | 0.855 | 7.399 | 7.391 |
+| bagging, 25 trees | 4.115 | 1.199 | 6.314 | 6.338 |
+| random forest, 25 trees | 5.545 | 0.855 | 7.400 | 7.392 |
 | boosting, 100 rounds | 1.640 | 1.170 | 3.811 | 3.827 |
 <!-- /results -->
 
@@ -132,8 +132,8 @@ which no linear model can fit.
 <!-- results: model-choice -->
 | Data | Ridge | One tree | Random forest | Boosting |
 |---|---:|---:|---:|---:|
-| `linear` | 1.067 | 4.167 | 3.157 | 2.161 |
-| `Friedman` | 2.796 | 3.421 | 2.503 | 1.824 |
+| `linear` | 1.067 | 4.167 | 3.158 | 2.161 |
+| `Friedman` | 2.796 | 3.421 | 2.507 | 1.824 |
 <!-- /results -->
 
 On linear data, **ridge beats boosting by a factor of two and a single tree by a factor of
@@ -170,6 +170,15 @@ the checks are layered:
 - **The claims on this page.** A deep tree must reach zero training error and score worse on
   test than a shallow one; bagging must beat the tree it is made of; boosting's training error
   must decrease at every single round.
+- **Determinism against the machine.** `numpy.sum` adds in blocks sized to the processor's
+  vector width, so the same sum can differ in its last bits between platforms. That is far too
+  small to change which split is genuinely best and quite large enough to change which of two
+  *equally* good splits wins — and a greedy tree turns one flipped split into a different
+  model. One test injects exactly that perturbation, a relative `1e-13` on every impurity
+  score. Without the tie quantisation in
+  [`_best_split`](../src/ml_foundations/trees.py) the predictions move by **1.16**; with it
+  they do not move at all, which is the only reason the numbers on this page can be checked by
+  a machine that is not this one.
 
 ## Takeaways
 

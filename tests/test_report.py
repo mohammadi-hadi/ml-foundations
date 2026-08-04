@@ -77,3 +77,33 @@ def test_table_alignment_defaults_to_text_left_numbers_right() -> None:
 def test_table_rejects_a_mismatched_alignment_spec() -> None:
     with pytest.raises(report.ReportError):
         report.table(["a", "b"], [], align=["l"])
+
+
+def test_a_marker_inside_a_code_fence_is_left_alone() -> None:
+    """Documentation about this machinery must be able to show a marker without triggering one.
+
+    The README does exactly that, and before fences were skipped it ended up with a real
+    results table injected into the example explaining how results tables get injected.
+    """
+    text = (
+        "before\n\n"
+        "```markdown\n"
+        "<!-- results: demo -->\n"
+        "...anything here is overwritten...\n"
+        "<!-- /results -->\n"
+        "```\n\n"
+        "<!-- results: demo -->\n"
+        "stale\n"
+        "<!-- /results -->\n"
+    )
+    out = report.inject(text, {"demo": "REAL"})
+    assert "...anything here is overwritten..." in out
+    assert "REAL" in out
+    assert "stale" not in out
+    assert out.count("REAL") == 1
+
+
+def test_a_key_only_mentioned_inside_a_fence_is_not_required() -> None:
+    text = "```\n<!-- results: never-computed -->\n\n<!-- /results -->\n```\n"
+    assert report.keys_in(text) == []
+    assert report.inject(text, {}) == text

@@ -34,6 +34,26 @@ _BLOCK = re.compile(
     r"<!-- results: (?P<key>[a-z0-9_\-]+) -->\n(?P<body>.*?)<!-- /results -->",
     re.DOTALL,
 )
+_FENCE = re.compile(r"^```.*?^```", re.DOTALL | re.MULTILINE)
+
+
+def _fenced_spans(text: str) -> list[tuple[int, int]]:
+    """Character ranges covered by fenced code blocks.
+
+    Documentation about this machinery has to be able to *show* a result marker without one
+    being injected into it. The README does exactly that, and before this existed it had a
+    real table written into the example explaining how tables get written in.
+    """
+    return [match.span() for match in _FENCE.finditer(text)]
+
+
+def _outside_fences(text: str) -> list[re.Match[str]]:
+    fenced = _fenced_spans(text)
+    return [
+        match
+        for match in _BLOCK.finditer(text)
+        if not any(start <= match.start() < end for start, end in fenced)
+    ]
 
 
 class ReportError(RuntimeError):
@@ -70,20 +90,20 @@ def table(
 
 
 def keys_in(text: str) -> list[str]:
-    """Every result key a document asks for, in the order it asks."""
-    return [match.group("key") for match in _BLOCK.finditer(text)]
+    """Every result key a document asks for, in the order it asks. Code blocks do not count."""
+    return [match.group("key") for match in _outside_fences(text)]
 
 
 def inject(text: str, blocks: dict[str, str]) -> str:
     """Replace the body of every marked block with the rendered result of the same name."""
-
-    def replace(match: re.Match[str]) -> str:
+    # Right to left, so that replacing one block does not move the offsets of the next.
+    for match in reversed(_outside_fences(text)):
         key = match.group("key")
         if key not in blocks:
             raise ReportError(f"no experiment produces the result block {key!r}")
-        return f"<!-- results: {key} -->\n{blocks[key].strip()}\n<!-- /results -->"
-
-    return _BLOCK.sub(replace, text)
+        replacement = f"<!-- results: {key} -->\n{blocks[key].strip()}\n<!-- /results -->"
+        text = text[: match.start()] + replacement + text[match.end() :]
+    return text
 
 
 def documents(root: Path) -> list[Path]:

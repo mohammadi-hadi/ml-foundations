@@ -60,15 +60,24 @@ def make_linear(
     noise: float = 1.0,
     seed: int = 0,
     intercept: float = 3.0,
+    coef: Array | None = None,
 ) -> Dataset:
     """A well-conditioned linear problem: independent standard-normal features.
 
     The irreducible error is ``noise``: no estimator can do better than that RMSE on fresh
     data, which is the number to compare a fitted model against.
+
+    Passing ``coef`` fixes the truth and lets the seed vary only the sample. That is what
+    makes a bias-variance decomposition possible in lesson 3: bias and variance are averages
+    over *repeated samples from one world*, and a generator that redrew the coefficients each
+    time would be averaging over different worlds instead.
     """
     rng = _rng(seed)
     X = rng.standard_normal((n_samples, n_features))
-    coef = rng.uniform(-3.0, 3.0, size=n_features)
+    if coef is None:
+        coef = rng.uniform(-3.0, 3.0, size=n_features)
+    elif coef.shape != (n_features,):
+        raise ValueError(f"coef has shape {coef.shape}, expected ({n_features},)")
     y = X @ coef + intercept + rng.standard_normal(n_samples) * noise
     return Dataset(X=X, y=y, name="linear", coef=coef, intercept=intercept)
 

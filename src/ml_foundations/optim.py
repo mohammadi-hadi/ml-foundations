@@ -197,9 +197,7 @@ def minimise_stochastic(
     return Trace(w, distances, diverged=distances[-1] > distances[0], steps_to_tolerance=None)
 
 
-def least_squares_parts(
-    X: Array, y: Array
-) -> tuple[Gradient, BatchGradient, float]:
+def least_squares_parts(X: Array, y: Array) -> tuple[Gradient, BatchGradient, float]:
     """Gradient, mini-batch gradient, and the largest curvature, for ``mean((Xw - y)**2)``.
 
     The third return value is what makes lesson 2's central prediction possible. The Hessian

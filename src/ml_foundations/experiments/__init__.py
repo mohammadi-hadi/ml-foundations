@@ -13,7 +13,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from ml_foundations.experiments import e01_linear, e02_gradient_descent, e03_regularization
+from ml_foundations.experiments import (
+    e01_linear,
+    e02_gradient_descent,
+    e03_regularization,
+    e04_logistic,
+)
 from ml_foundations.report import ReportError
 
 
@@ -38,6 +43,7 @@ LESSONS: tuple[Lesson, ...] = (
         "Regularisation and the bias-variance trade-off",
         e03_regularization.run,
     ),
+    Lesson(4, "logistic-regression", "Logistic regression, and metrics that lie", e04_logistic.run),
 )
 
 

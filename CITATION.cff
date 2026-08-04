@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this material, please cite it as below."
+title: "ML Foundations: machine learning fundamentals implemented from scratch and verified"
+type: software
+version: "0.1.0"
+date-released: "2026-08-04"
+license: MIT
+repository-code: "https://github.com/mohammadi-hadi/ml-foundations"
+url: "https://github.com/mohammadi-hadi/ml-foundations"
+authors:
+  - given-names: "Hadi"
+    family-names: "Mohammadi"
+    orcid: "https://orcid.org/0000-0003-0860-9200"
+    affiliation: "Utrecht University"
+keywords:
+  - "machine learning"
+  - "from scratch"
+  - "numpy"
+  - "teaching"
+  - "reproducible research"
+  - "evaluation"
+abstract: >-
+  Six lessons implementing machine learning fundamentals in numpy — least
+  squares by three solvers, gradient descent, regularisation, logistic
+  regression, trees and ensembles, and evaluation. Every estimator is pinned
+  by a test at one of three tiers: exact agreement with an independent
+  reference, properties that hold exactly without any reference, or recovery
+  of parameters known before the data existed. Every number quoted in the
+  lessons is injected from the code by a report command, and continuous
+  integration regenerates them on a different machine and fails the build on
+  any drift, so the prose cannot disagree with what the code does.

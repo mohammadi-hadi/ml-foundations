@@ -189,6 +189,21 @@ Linear Algebra* for lesson 1.
 - [trajectory-judge](https://github.com/mohammadi-hadi/trajectory-judge) — what an LLM judge
   misses when an agent reaches the right answer the wrong way
 
+## Citation
+
+If ML Foundations is useful in your work, please cite it (see [CITATION.cff](CITATION.cff)):
+
+```bibtex
+@software{mohammadi_ml_foundations,
+  author    = {Mohammadi, Hadi},
+  title     = {ML Foundations: machine learning fundamentals implemented from scratch and verified},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.21797931},
+  url       = {https://github.com/mohammadi-hadi/ml-foundations}
+}
+```
+
 ## Contributing
 
 Corrections are welcome, particularly to the mathematics or to a claim that does not hold up.
